@@ -14,7 +14,11 @@ func main() {
 		log.Fatalf("Error while dialing: %v", err)
 	}
 
-	conn.SetWriteDeadline(time.Now().Add(time.Second * 10))
+	if err := conn.SetWriteDeadline(time.Now().Add(time.Second * 10)); err != nil {
+		log.Fatalf("Error while setting write deadline: %v", err)
+	}
 
-	conn.WriteMessages(kafka.Message{Value: []byte("Hello")})
+	if _, err := conn.WriteMessages(kafka.Message{Value: []byte("Hello")}); err != nil {
+		log.Fatalf("Error while writing message: %v", err)
+	}
 }
