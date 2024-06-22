@@ -1,24 +1,32 @@
 package main
 
 import (
-	"context"
+	"github.com/IBM/sarama"
 	"log"
-	"time"
-
-	"github.com/segmentio/kafka-go"
 )
 
 func main() {
-	conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", "topic_test", 0)
+	brokerList := []string{"localhost:9092"} // kafka broker address
+
+	producer, err := sarama.NewSyncProducer(brokerList, nil)
 	if err != nil {
-		log.Fatalf("Error while dialing: %v", err)
+		log.Printf("Failed to start Sarama producer: %v", err)
+		return
+	}
+	defer producer.Close()
+
+	topic := "example_topic" // kafka topic
+
+	message := &sarama.ProducerMessage{
+		Topic: topic,
+		Value: sarama.StringEncoder("hello world"), // set any string value
 	}
 
-	if err := conn.SetWriteDeadline(time.Now().Add(time.Second * 10)); err != nil {
-		log.Fatalf("Error while setting write deadline: %v", err)
+	partition, offset, err := producer.SendMessage(message)
+	if err != nil {
+		log.Printf("Failed to send message: %v", err)
+		return
 	}
 
-	if _, err := conn.WriteMessages(kafka.Message{Value: []byte("Hello")}); err != nil {
-		log.Fatalf("Error while writing message: %v", err)
-	}
+	log.Printf("Message sent to partition %d at offset %d\n", partition, offset)
 }

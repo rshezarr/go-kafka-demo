@@ -1,6 +1,15 @@
 # go-kafka-demo
-Demo project using kafka
+Simple go kafka consumer and producer
+
+## Usage:
+Run docker-compose first:
+```bash
+docker-compose up -d
+```
+
+Then run consumer and producer
 
 ## Tools
 1. Golang
-1. Apache Kafka
+2. Apache Kafka
+3. Docker Compose

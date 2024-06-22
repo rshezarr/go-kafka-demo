@@ -1,32 +1,56 @@
 package main
 
 import (
-	"context"
-	"fmt"
+	"github.com/IBM/sarama"
 	"log"
-	"time"
-
-	"github.com/segmentio/kafka-go"
+	"os"
+	"os/signal"
 )
 
 func main() {
-	conn, err := kafka.DialLeader(context.Background(), "tcp", "localhost:9092", "topic_test", 0)
+	brokerList := []string{"localhost:9092"} // kafka broker address
+
+	topic := "example_topic"
+
+	config := sarama.NewConfig()
+	config.Consumer.Return.Errors = true
+	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+
+	// create a new consumer
+	consumer, err := sarama.NewConsumer(brokerList, config)
 	if err != nil {
-		log.Fatalf("Error while dialing: %v", err)
+		log.Fatalf("Failed to start consumer: %s", err)
 	}
-	if err := conn.SetReadDeadline(time.Now().Add(time.Second * 8)); err != nil {
-		log.Fatalf("Error while setting read deadline: %v", err)
+	defer consumer.Close()
+
+	partitionConsumer, err := consumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
+	if err != nil {
+		log.Fatalf("Failed to start partition consumer: %s", err)
 	}
+	defer partitionConsumer.Close()
 
-	batch := conn.ReadBatch(1e3, 1e9) // 1KB, 1GB
+	// trap SIGINT to trigger a graceful shutdown
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
 
-	bytes := make([]byte, 1e3)
-
-	for {
-		_, err := batch.Read(bytes)
-		if err != nil {
-			break
+	doneCh := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case err := <-partitionConsumer.Errors():
+				log.Printf("ERROR: %s", err.Error())
+			case msg := <-partitionConsumer.Messages():
+				log.Printf("Received message on topic: %s, Value: %s", topic, string(msg.Value))
+			// process message here
+			case <-signals:
+				log.Printf("Interrupt signal received")
+				doneCh <- struct{}{}
+				return
+			}
 		}
-		fmt.Println(string(bytes))
-	}
+	}()
+
+	log.Println("Consumer started...")
+	<-doneCh
+	log.Println("Consumer shutting down...")
 }
